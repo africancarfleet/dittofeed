@@ -145,6 +145,7 @@ type BaseSendParams = {
   messageId: string;
   subscriptionGroupId?: string;
   triggeringMessageId?: string;
+  templateProperties?: Record<string, string>;
 } & RenameKey<MessageVariant, "type", "channel">;
 
 export type SendParams = Omit<BaseSendParams, "channel">;

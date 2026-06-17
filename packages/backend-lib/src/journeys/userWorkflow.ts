@@ -878,6 +878,7 @@ export async function userJourneyWorkflow(
           nodeId: currentNode.id,
           messageId,
           triggeringMessageId,
+          templateProperties: currentNode.properties,
         };
 
         let variant: RenameKey<MessageVariant, "type", "channel">;

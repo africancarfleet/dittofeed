@@ -515,6 +515,9 @@ export interface SendMessageParametersBase {
   messageTags?: MessageTags;
   useDraft: boolean;
   isPreview?: boolean;
+  // Static key/value attributes configured on a journey message node, exposed
+  // to templates as the `properties` Liquid variable.
+  templateProperties?: Record<string, string>;
 }
 
 export interface SendMessageParametersEmail extends SendMessageParametersBase {
@@ -2172,6 +2175,7 @@ export async function sendWebhook({
   useDraft,
   messageTags,
   isPreview,
+  templateProperties,
 }: Omit<
   SendMessageParametersWebhook,
   "channel"
@@ -2237,6 +2241,7 @@ export async function sendWebhook({
     secrets,
     tags: messageTags,
     isPreview,
+    templateProperties,
     templates: {
       body: {
         contents: messageTemplateDefinition.body,

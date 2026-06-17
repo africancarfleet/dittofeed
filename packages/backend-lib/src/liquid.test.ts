@@ -305,4 +305,42 @@ describe("renderWithUserProperties", () => {
       expect(rendered).toContain("h=");
     });
   });
+
+  describe("templateProperties (the `properties` variable)", () => {
+    it("exposes configured node properties as the `properties` variable", () => {
+      const rendered = renderLiquid({
+        template: `{{ properties.pushTitle }}: {{ properties.pushBody }}`,
+        workspaceId: randomUUID(),
+        userProperties: {},
+        templateProperties: {
+          pushTitle: "Your ride is here",
+          pushBody: "Arriving in 2 min",
+        },
+      });
+      expect(rendered.trim()).toEqual("Your ride is here: Arriving in 2 min");
+    });
+
+    it("can combine node properties with user properties", () => {
+      const rendered = renderLiquid({
+        template: `{{ properties.greeting }} {{ user.firstName }}`,
+        workspaceId: randomUUID(),
+        userProperties: {
+          firstName: "Max",
+        },
+        templateProperties: {
+          greeting: "Hello",
+        },
+      });
+      expect(rendered.trim()).toEqual("Hello Max");
+    });
+
+    it("renders missing properties as empty when not provided", () => {
+      const rendered = renderLiquid({
+        template: `start{{ properties.missing }}end`,
+        workspaceId: randomUUID(),
+        userProperties: {},
+      });
+      expect(rendered.trim()).toEqual("startend");
+    });
+  });
 });

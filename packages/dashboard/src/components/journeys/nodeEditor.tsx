@@ -4,6 +4,7 @@ import {
   Box,
   Button,
   Checkbox,
+  Chip,
   FormControl,
   FormControlLabel,
   IconButton,
@@ -26,6 +27,7 @@ import {
   DEFAULT_USER_PROPERTY_DELAY_OFFSET_DIRECTION,
 } from "isomorphic-lib/src/constants";
 import { getDefaultSubscriptionGroup } from "isomorphic-lib/src/subscriptionGroups";
+import { extractTemplatePropertyKeys } from "isomorphic-lib/src/templateProperties";
 import { assertUnreachable } from "isomorphic-lib/src/typeAssertions";
 import {
   AllowedDayIndices,
@@ -44,7 +46,7 @@ import {
   TwilioSenderOverrideType,
   WorkspaceWideEmailProviders,
 } from "isomorphic-lib/src/types";
-import { ReactNode, useCallback, useMemo } from "react";
+import { ReactNode, useCallback, useMemo, useState } from "react";
 
 import { useAppStorePick } from "../../lib/appStore";
 import {
@@ -58,6 +60,7 @@ import {
   SegmentSplitUiNodeProps,
   WaitForUiNodeProps,
 } from "../../lib/types";
+import { useMessageTemplateQuery } from "../../lib/useMessageTemplateQuery";
 import { useSegmentsQuery } from "../../lib/useSegmentsQuery";
 import { useSubscriptionGroupsQuery } from "../../lib/useSubscriptionGroupsQuery";
 import ChannelProviderAutocomplete from "../channelProviderAutocomplete";
@@ -388,6 +391,141 @@ function EntryNodeFields({
       </Select>
       {variant}
     </>
+  );
+}
+
+function MessageNodePropertiesEditor({
+  nodeId,
+  templateId,
+  properties,
+  disabled,
+}: {
+  nodeId: string;
+  templateId?: string;
+  properties?: Record<string, string>;
+  disabled?: boolean;
+}) {
+  const { updateJourneyNodeData } = useAppStorePick(["updateJourneyNodeData"]);
+  const { data: template } = useMessageTemplateQuery(templateId);
+  // Local ordered list of entries, seeded once per node. The parent mounts this
+  // component with key={nodeId} so it reseeds when a different node is selected.
+  const [entries, setEntries] = useState<{ key: string; value: string }[]>(() =>
+    Object.entries(properties ?? {}).map(([key, value]) => ({ key, value })),
+  );
+
+  // Keys referenced as `{{ properties.* }}` in the selected template but not yet
+  // configured on this node — offered as one-click suggestions.
+  const suggestedKeys = useMemo(() => {
+    const referenced = extractTemplatePropertyKeys(
+      template?.draft ?? template?.definition,
+    );
+    const existing = new Set(entries.map((e) => e.key.trim()));
+    return referenced.filter((key) => !existing.has(key));
+  }, [template, entries]);
+
+  const persist = (next: { key: string; value: string }[]) => {
+    setEntries(next);
+    updateJourneyNodeData(nodeId, (node) => {
+      const props = node.data.nodeTypeProps;
+      if (props.type === JourneyNodeType.MessageNode) {
+        const record: Record<string, string> = {};
+        for (const { key, value } of next) {
+          const trimmedKey = key.trim();
+          if (trimmedKey.length > 0) {
+            record[trimmedKey] = value;
+          }
+        }
+        props.properties = Object.keys(record).length > 0 ? record : undefined;
+      }
+    });
+  };
+
+  const addEntry = () => persist([...entries, { key: "", value: "" }]);
+  const addSuggestedKey = (key: string) =>
+    persist([...entries, { key, value: "" }]);
+  const updateEntry = (
+    index: number,
+    field: "key" | "value",
+    fieldValue: string,
+  ) =>
+    persist(
+      entries.map((entry, i) =>
+        i === index ? { ...entry, [field]: fieldValue } : entry,
+      ),
+    );
+  const removeEntry = (index: number) =>
+    persist(entries.filter((_, i) => i !== index));
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" spacing={1} alignItems="center">
+        <SubtleHeader>Custom Properties</SubtleHeader>
+        <InfoTooltip title="Static key/value attributes available in this node's template as the `properties` Liquid variable, e.g. {{ properties.pushTitle }}." />
+      </Stack>
+      {entries.map((entry, index) => (
+        <Stack
+          // eslint-disable-next-line react/no-array-index-key
+          key={index}
+          direction="row"
+          spacing={1}
+          alignItems="center"
+        >
+          <TextField
+            label="Key"
+            size="small"
+            sx={{ flex: 1 }}
+            value={entry.key}
+            onChange={(e) => updateEntry(index, "key", e.target.value)}
+            disabled={disabled}
+          />
+          <TextField
+            label="Value"
+            size="small"
+            sx={{ flex: 1 }}
+            value={entry.value}
+            onChange={(e) => updateEntry(index, "value", e.target.value)}
+            disabled={disabled}
+          />
+          <IconButton
+            onClick={() => removeEntry(index)}
+            disabled={disabled}
+            size="small"
+          >
+            <Delete />
+          </IconButton>
+        </Stack>
+      ))}
+      <Button
+        variant="outlined"
+        size="small"
+        onClick={addEntry}
+        disabled={disabled}
+        sx={{ alignSelf: "flex-start" }}
+      >
+        Add Property
+      </Button>
+      {suggestedKeys.length > 0 ? (
+        <Stack spacing={0.5}>
+          <Typography variant="caption" color="text.secondary">
+            Referenced in template — click to add:
+          </Typography>
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {suggestedKeys.map((key) => (
+              <Chip
+                key={key}
+                label={key}
+                size="small"
+                variant="outlined"
+                onClick={
+                  disabled ? undefined : () => addSuggestedKey(key)
+                }
+                disabled={disabled}
+              />
+            ))}
+          </Stack>
+        </Stack>
+      ) : null}
+    </Stack>
   );
 }
 
@@ -777,6 +915,13 @@ function MessageNodeFields({
       ) : null}
       {providerOverrideEl}
       {providerOverrideConfigEl}
+      <MessageNodePropertiesEditor
+        key={nodeId}
+        nodeId={nodeId}
+        templateId={nodeProps.templateId}
+        properties={nodeProps.properties}
+        disabled={disabled}
+      />
       <Stack direction="row" spacing={1}>
         <InfoTooltip title="When enabled, message failures won't cause the journey to exit. The user will continue to the next step even if the message fails to send." />
         <FormControlLabel

@@ -22,7 +22,9 @@ const config = {
       ],
       displayName: "backend-lib",
       roots: ["<rootDir>/packages/backend-lib/src"],
-      testPathIgnorePatterns: ["<rootDir>/packages/backend-lib/src/jsdom-tests/"],
+      testPathIgnorePatterns: [
+        "<rootDir>/packages/backend-lib/src/jsdom-tests/",
+      ],
       transform: {
         "^.+\\.tsx?$": [
           "ts-jest",
@@ -105,6 +107,19 @@ const config = {
           "ts-jest",
           {
             tsconfig: "<rootDir>/packages/emailo/tsconfig.json",
+          },
+        ],
+      },
+    },
+    {
+      ...BASE_CONFIG,
+      displayName: "isomorphic-lib",
+      roots: ["<rootDir>/packages/isomorphic-lib/src"],
+      transform: {
+        "^.+\\.tsx?$": [
+          "ts-jest",
+          {
+            tsconfig: "<rootDir>/packages/isomorphic-lib/tsconfig.json",
           },
         ],
       },

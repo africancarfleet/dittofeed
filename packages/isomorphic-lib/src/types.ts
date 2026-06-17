@@ -1174,6 +1174,12 @@ export const MessageNode = Type.Object(
     child: Type.String(),
     syncProperties: Type.Optional(Type.Boolean()),
     skipOnFailure: Type.Optional(Type.Boolean()),
+    properties: Type.Optional(
+      Type.Record(Type.String(), Type.String(), {
+        description:
+          "Static key/value attributes configured on this node, exposed to message templates as the `properties` Liquid variable (e.g. {{ properties.pushTitle }}).",
+      }),
+    ),
     retryCount: Type.Optional(
       Type.Number({ description: "Number of retry attempts (default: 3)" }),
     ),
@@ -2227,6 +2233,7 @@ export const BaseMessageUiNodeProps = Type.Object({
   subscriptionGroupId: Type.Optional(Type.String()),
   syncProperties: Type.Optional(Type.Boolean()),
   skipOnFailure: Type.Optional(Type.Boolean()),
+  properties: Type.Optional(Type.Record(Type.String(), Type.String())),
 });
 
 export type BaseMessageUiNodeProps = Static<typeof BaseMessageUiNodeProps>;

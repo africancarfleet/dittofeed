@@ -253,6 +253,9 @@ export interface RenderLiquidOptions {
   isPreview?: boolean;
   showAllChannels?: boolean;
   messageId?: string;
+  // Static key/value attributes configured on a journey message node, exposed
+  // to templates as the `properties` Liquid variable.
+  templateProperties?: Record<string, string>;
 }
 
 export function renderLiquid({
@@ -266,6 +269,7 @@ export function renderLiquid({
   tags,
   isPreview = false,
   messageId,
+  templateProperties,
 }: RenderLiquidOptions): string {
   if (!template?.length) {
     return "";
@@ -281,6 +285,7 @@ export function renderLiquid({
     tags: tags ?? {},
     is_preview: isPreview,
     message_id: messageId,
+    properties: templateProperties ?? {},
   }) as string;
   if (!mjml) {
     return liquidRendered;
