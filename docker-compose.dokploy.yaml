@@ -40,7 +40,13 @@ x-backend-app-env: &backend-app-env
 
 services:
   lite:
-    image: ${IMAGE_REPOSITORY:-dittofeed/dittofeed-lite}:${IMAGE_TAG:-v0.24.0}
+    # Build the all-in-one image from this repo's source instead of pulling the
+    # upstream release, so local code changes (e.g. journey node template
+    # properties) are included. Dokploy clones the repo and builds this.
+    build:
+      context: .
+      dockerfile: packages/lite/Dockerfile
+    image: dittofeed-lite:custom
     restart: always
     command: node --max-old-space-size=${LITE_MEM_LIMIT:-824} ./packages/lite/dist/scripts/startLite.js --workspace-name=${WORKSPACE_NAME:-Default}
     logging:

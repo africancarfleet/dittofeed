@@ -342,5 +342,26 @@ describe("renderWithUserProperties", () => {
       });
       expect(rendered.trim()).toEqual("startend");
     });
+
+    it("resolves an unset property key to empty rather than throwing (strict)", () => {
+      const rendered = renderLiquid({
+        template: `[{{ properties.aziz }}]`,
+        workspaceId: randomUUID(),
+        userProperties: {},
+        templateProperties: { other: "set" },
+      });
+      expect(rendered.trim()).toEqual("[]");
+    });
+
+    it("still strictly errors on unknown user properties", () => {
+      expect(() =>
+        renderLiquid({
+          template: `{{ user.unknownProp }}`,
+          workspaceId: randomUUID(),
+          userProperties: {},
+          templateProperties: { aziz: "x" },
+        }),
+      ).toThrow();
+    });
   });
 });
