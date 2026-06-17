@@ -1,0 +1,158 @@
+# Dittofeed Lite — adapted for Dokploy with a custom domain.
+#
+# How it differs from docker-compose.lite.yaml:
+#   * The `lite` service joins Dokploy's external `dokploy-network` and is
+#     exposed through Traefik via labels (TLS + custom domain), instead of
+#     publishing port 3000 on the host.
+#   * Internal services (postgres, clickhouse, temporal) no longer publish
+#     ports to the host — they talk over the private compose network only.
+#   * DASHBOARD_URL is set (base domain for API + dashboard; also drives CORS
+#     allowedOrigins and the signout redirect). DASHBOARD_API_BASE matches it.
+#
+# Set the variables marked REQUIRED in Dokploy's "Environment" tab (or a .env).
+# See .env.dokploy.example for the full list.
+version: "3.9"
+
+x-database-credentials: &database-credentials
+  DATABASE_USER: ${DATABASE_USER:-postgres}
+  DATABASE_PASSWORD: ${DATABASE_PASSWORD:?set DATABASE_PASSWORD}
+x-clickhouse-credentials: &clickhouse-credentials
+  CLICKHOUSE_USER: ${CLICKHOUSE_USER:-dittofeed}
+  CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD}
+x-backend-app-env: &backend-app-env
+  <<: [*clickhouse-credentials, *database-credentials]
+  NODE_ENV: production
+  DATABASE_HOST: ${DATABASE_HOST:-postgres}
+  DATABASE_PORT: ${DATABASE_PORT:-5432}
+  CLICKHOUSE_HOST: ${CLICKHOUSE_HOST:-http://clickhouse-server:8123}
+  TEMPORAL_ADDRESS: ${TEMPORAL_ADDRESS:-temporal:7233}
+  WORKSPACE_NAME: ${WORKSPACE_NAME:-Default}
+  AUTH_MODE: ${AUTH_MODE:-single-tenant}
+  SECRET_KEY: "${SECRET_KEY:?generate with openssl rand -base64 32}"
+  PASSWORD: ${PASSWORD:?set the dashboard login PASSWORD}
+  # Public URL of your deployment. DASHBOARD_URL is the base domain for the API
+  # and dashboard, and also seeds CORS allowedOrigins + the signout redirect.
+  DASHBOARD_URL: "https://${DOMAIN:?set DOMAIN, e.g. dittofeed.example.com}"
+  DASHBOARD_API_BASE: "https://${DOMAIN}"
+
+services:
+  lite:
+    image: ${IMAGE_REPOSITORY:-dittofeed/dittofeed-lite}:${IMAGE_TAG:-v0.24.0}
+    restart: always
+    command: node --max-old-space-size=${LITE_MEM_LIMIT:-824} ./packages/lite/dist/scripts/startLite.js --workspace-name=${WORKSPACE_NAME:-Default}
+    logging:
+      driver: "local"
+    deploy:
+      resources:
+        limits:
+          memory: ${LITE_CONTAINER_MEM_LIMIT:-1024}m
+    depends_on:
+      - postgres
+      - temporal
+      - clickhouse-server
+    environment:
+      <<: *backend-app-env
+      # Bootstraps the DB + ClickHouse schema on first boot.
+      # Set BOOTSTRAP=false in Dokploy once the stack is up and healthy.
+      BOOTSTRAP: ${BOOTSTRAP:-true}
+    networks:
+      - dittofeed-network-lite
+      - dokploy-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      # --- HTTPS router (custom domain) ---
+      - "traefik.http.routers.dittofeed.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.dittofeed.entrypoints=websecure"
+      - "traefik.http.routers.dittofeed.tls=true"
+      - "traefik.http.routers.dittofeed.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.dittofeed.service=dittofeed"
+      - "traefik.http.services.dittofeed.loadbalancer.server.port=3000"
+      # --- HTTP router -> redirect to HTTPS ---
+      - "traefik.http.routers.dittofeed-web.rule=Host(`${DOMAIN}`)"
+      - "traefik.http.routers.dittofeed-web.entrypoints=web"
+      - "traefik.http.routers.dittofeed-web.middlewares=dittofeed-redirect"
+      - "traefik.http.middlewares.dittofeed-redirect.redirectscheme.scheme=https"
+
+  # Run upgrades / migrations: `docker compose run --rm admin-cli ...`
+  admin-cli:
+    image: ${ADMIN_CLI_REPOSITORY:-dittofeed/dittofeed-admin-cli}:${IMAGE_TAG:-v0.24.0}
+    entrypoint: []
+    profiles: ["admin-cli"]
+    command: tail -f /dev/null
+    tty: true
+    logging:
+      driver: "local"
+    depends_on:
+      - postgres
+      - temporal
+      - clickhouse-server
+    environment:
+      <<: *backend-app-env
+    networks:
+      - dittofeed-network-lite
+
+  temporal:
+    container_name: temporal
+    restart: always
+    logging:
+      driver: "local"
+    depends_on:
+      - postgres
+    environment:
+      - DB=postgresql
+      - DB_PORT=${DATABASE_PORT:-5432}
+      - POSTGRES_USER=${DATABASE_USER:-postgres}
+      - POSTGRES_PWD=${DATABASE_PASSWORD:?set DATABASE_PASSWORD}
+      - POSTGRES_SEEDS=${DATABASE_HOST:-postgres}
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/prod.yaml
+    image: temporalio/auto-setup:${TEMPORAL_VERSION:-1.22.4}
+    labels:
+      kompose.volume.type: configMap
+    networks:
+      - dittofeed-network-lite
+    volumes:
+      - ./packages/backend-lib/temporal-dynamicconfig:/etc/temporal/config/dynamicconfig
+
+  postgres:
+    image: postgres:${POSTGRES_VERSION:-15}
+    restart: always
+    logging:
+      driver: "local"
+    environment:
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD:?set DATABASE_PASSWORD}
+      - POSTGRES_USER=${DATABASE_USER:-postgres}
+      - POSTGRES_DB=dittofeed
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    networks:
+      - dittofeed-network-lite
+
+  clickhouse-server:
+    image: clickhouse/clickhouse-server:24.12.6.70-alpine
+    restart: always
+    logging:
+      driver: "local"
+    deploy:
+      resources:
+        limits:
+          memory: ${CLICKHOUSE_CONTAINER_MEM_LIMIT:-2048}m
+    environment:
+      <<: *clickhouse-credentials
+    volumes:
+      - clickhouse_lib:/var/lib/clickhouse
+      - clickhouse_log:/var/log/clickhouse-server
+    networks:
+      - dittofeed-network-lite
+
+volumes:
+  postgres:
+  clickhouse_lib:
+  clickhouse_log:
+
+networks:
+  dittofeed-network-lite:
+    driver: bridge
+  # Created and managed by Dokploy; Traefik lives here.
+  dokploy-network:
+    external: true
