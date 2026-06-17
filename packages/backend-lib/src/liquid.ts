@@ -1,6 +1,6 @@
 /* eslint-disable no-underscore-dangle */
 import { SecretNames } from "isomorphic-lib/src/constants";
-import { Liquid } from "liquidjs";
+import { Drop, Liquid } from "liquidjs";
 import MarkdownIt from "markdown-it";
 import mjml2html from "mjml";
 
@@ -240,6 +240,26 @@ liquidEngine.registerTag("view_in_browser_url", {
 const MJML_NOT_PRESENT_ERROR =
   "Check that your structure is correct and enclosed in <mjml> tags";
 
+/**
+ * Exposes journey-node-configured properties to templates as the `properties`
+ * Liquid variable. Unlike `user`/`secrets`, property keys are author-defined and
+ * not known in advance, so missing keys resolve to an empty string instead of
+ * throwing under `strictVariables`. Strict checking still applies everywhere
+ * else (e.g. `user.unknown` continues to error).
+ */
+class PropertiesDrop extends Drop {
+  private readonly values: Record<string, string>;
+
+  constructor(values?: Record<string, string>) {
+    super();
+    this.values = values ?? {};
+  }
+
+  override liquidMethodMissing(key: string): string {
+    return this.values[key] ?? "";
+  }
+}
+
 export interface RenderLiquidOptions {
   template?: string;
   mjml?: boolean;
@@ -285,7 +305,7 @@ export function renderLiquid({
     tags: tags ?? {},
     is_preview: isPreview,
     message_id: messageId,
-    properties: templateProperties ?? {},
+    properties: new PropertiesDrop(templateProperties),
   }) as string;
   if (!mjml) {
     return liquidRendered;
