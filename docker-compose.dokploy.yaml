@@ -28,6 +28,9 @@ x-backend-app-env: &backend-app-env
   TEMPORAL_ADDRESS: ${TEMPORAL_ADDRESS:-temporal:7233}
   WORKSPACE_NAME: ${WORKSPACE_NAME:-Default}
   AUTH_MODE: ${AUTH_MODE:-single-tenant}
+  # Traefik terminates TLS in front of the app, so the public site is HTTPS.
+  # Mark the session cookie Secure (silences the dashboard warning).
+  SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
   SECRET_KEY: "${SECRET_KEY:?generate with openssl rand -base64 32}"
   PASSWORD: ${PASSWORD:?set the dashboard login PASSWORD}
   # Public URL of your deployment. DASHBOARD_URL is the base domain for the API
