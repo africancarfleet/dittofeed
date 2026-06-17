@@ -246,18 +246,19 @@ const MJML_NOT_PRESENT_ERROR =
  * not known in advance, so missing keys resolve to an empty string instead of
  * throwing under `strictVariables`. Strict checking still applies everywhere
  * else (e.g. `user.unknown` continues to error).
+ *
+ * Implemented as a liquidjs `Drop` via `Object.create(Drop.prototype)` rather
+ * than `class ... extends Drop`. The build downlevels class syntax, and a
+ * downleveled `super()` call into liquidjs's native ES class `Drop` throws
+ * "Class constructor Drop cannot be invoked without 'new'" at runtime. liquidjs
+ * only requires `value instanceof Drop` plus a `liquidMethodMissing` method,
+ * both of which this provides without invoking the `Drop` constructor.
  */
-class PropertiesDrop extends Drop {
-  private readonly values: Record<string, string>;
-
-  constructor(values?: Record<string, string>) {
-    super();
-    this.values = values ?? {};
-  }
-
-  override liquidMethodMissing(key: string): string {
-    return this.values[key] ?? "";
-  }
+function createPropertiesDrop(values?: Record<string, string>): Drop {
+  const resolved = values ?? {};
+  const drop: Drop = Object.create(Drop.prototype);
+  drop.liquidMethodMissing = (key: string): string => resolved[key] ?? "";
+  return drop;
 }
 
 export interface RenderLiquidOptions {
@@ -305,7 +306,7 @@ export function renderLiquid({
     tags: tags ?? {},
     is_preview: isPreview,
     message_id: messageId,
-    properties: new PropertiesDrop(templateProperties),
+    properties: createPropertiesDrop(templateProperties),
   }) as string;
   if (!mjml) {
     return liquidRendered;
