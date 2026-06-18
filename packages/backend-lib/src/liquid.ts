@@ -296,7 +296,7 @@ export function renderLiquid({
     return "";
   }
 
-  const liquidRendered = liquidEngine.parseAndRenderSync(template, {
+  const baseScope = {
     user: userProperties,
     workspace_id: workspaceId,
     subscription_group_id: subscriptionGroupId,
@@ -306,7 +306,29 @@ export function renderLiquid({
     tags: tags ?? {},
     is_preview: isPreview,
     message_id: messageId,
-    properties: createPropertiesDrop(templateProperties),
+  };
+
+  // Pre-render each configured node property value so values may themselves
+  // reference other variables (e.g. "Hi {{ user.firstName }}"). A lenient empty
+  // `properties` drop is used here so a value referencing another (still
+  // unrendered) property resolves to "" rather than chaining or erroring.
+  const renderedProperties: Record<string, string> = {};
+  if (templateProperties) {
+    const propertyScope = {
+      ...baseScope,
+      properties: createPropertiesDrop({}),
+    };
+    for (const [key, value] of Object.entries(templateProperties)) {
+      renderedProperties[key] = liquidEngine.parseAndRenderSync(
+        value,
+        propertyScope,
+      ) as string;
+    }
+  }
+
+  const liquidRendered = liquidEngine.parseAndRenderSync(template, {
+    ...baseScope,
+    properties: createPropertiesDrop(renderedProperties),
   }) as string;
   if (!mjml) {
     return liquidRendered;

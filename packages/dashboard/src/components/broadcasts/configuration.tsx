@@ -47,6 +47,7 @@ import { GreyButton, greyButtonStyle } from "../greyButtonStyle";
 import InfoTooltip from "../infoTooltip";
 import { TimeField } from "../timeField";
 import { TimezoneAutocomplete } from "../timezoneAutocomplete";
+import { BroadcastPropertiesEditor } from "./broadcastPropertiesEditor";
 import {
   BroadcastState,
   BroadcastStateUpdater,
@@ -508,6 +509,14 @@ export default function Configuration({
           }}
         />
       )}
+
+      <BroadcastPropertiesEditor
+        key={broadcast.id}
+        broadcastId={broadcast.id}
+        templateId={broadcast.messageTemplateId}
+        initialProperties={broadcast.config.properties}
+        disabled={disabled}
+      />
 
       {providerOverride?.id === EmailProviderType.Gmail && (
         <AuthorizeGmail

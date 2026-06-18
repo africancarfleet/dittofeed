@@ -331,6 +331,7 @@ export function sendMessagesFactory(sender: Sender) {
             userPropertyAssignments,
             messageTags,
             subscriptionGroupDetails,
+            templateProperties: config.properties,
           };
           let messageVariant: SendMessageParameters;
           switch (config.message.type) {

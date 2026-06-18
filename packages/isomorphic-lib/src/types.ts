@@ -6006,6 +6006,10 @@ export const BroadcastV2Config = Type.Object({
   useIndividualTimezone: Type.Optional(Type.Boolean()),
   errorHandling: Type.Optional(BroadcastErrorHandling),
   batchSize: Type.Optional(Type.Number()),
+  // Static key/value attributes exposed to the broadcast's message template as
+  // the `properties` Liquid variable. Values are rendered per-recipient, so they
+  // may reference user properties (e.g. "Hi {{ user.firstName }}").
+  properties: Type.Optional(Type.Record(Type.String(), Type.String())),
   message: Type.Union([
     // Defined separately to allow workspace member specific providers.
     BroadcastEmailMessageVariant,

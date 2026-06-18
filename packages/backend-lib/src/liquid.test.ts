@@ -363,5 +363,25 @@ describe("renderWithUserProperties", () => {
         }),
       ).toThrow();
     });
+
+    it("renders liquid inside property values against the user context", () => {
+      const rendered = renderLiquid({
+        template: `{{ properties.greeting }}`,
+        workspaceId: randomUUID(),
+        userProperties: { firstName: "Max" },
+        templateProperties: { greeting: "Hi {{ user.firstName }}!" },
+      });
+      expect(rendered.trim()).toEqual("Hi Max!");
+    });
+
+    it("resolves cross-property references inside values to empty", () => {
+      const rendered = renderLiquid({
+        template: `[{{ properties.a }}]`,
+        workspaceId: randomUUID(),
+        userProperties: {},
+        templateProperties: { a: "{{ properties.b }}", b: "value" },
+      });
+      expect(rendered.trim()).toEqual("[]");
+    });
   });
 });
