@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM node:20.19.5-bullseye AS builder
 
 # Accept the build argument in the builder stage
@@ -17,9 +18,14 @@ COPY ./packages/isomorphic-lib/*.json ./packages/isomorphic-lib/
 COPY ./packages/emailo/*.json ./packages/emailo/
 
 RUN yarn set version 4.1.1
-RUN yarn workspaces focus lite --production && \
+# Persist the yarn package cache across builds so dependencies aren't
+# re-downloaded every time (enableGlobalCache is false, so the cache lives at
+# /service/.yarn/cache). Requires BuildKit.
+RUN --mount=type=cache,target=/service/.yarn/cache \
+    yarn workspaces focus lite --production && \
     cp -R node_modules production_node_modules
-RUN yarn workspaces focus lite emailo
+RUN --mount=type=cache,target=/service/.yarn/cache \
+    yarn workspaces focus lite emailo
 
 RUN mkdir -p packages/dashboard/public/public && \
     curl https://raw.githubusercontent.com/dittofeed/sdk-web/8ba1161ef3c59f276b30395dc84b3efbc20e6c2d/snippet/dittofeed.umd.js -o packages/dashboard/public/public/dittofeed.umd.js && \
@@ -33,12 +39,16 @@ COPY ./packages/worker/ ./packages/worker
 COPY ./packages/admin-cli/ ./packages/admin-cli
 COPY ./packages/emailo/ ./packages/emailo
 
-RUN yarn workspace emailo build && \
+# Persist the Next.js build cache across builds for incremental dashboard
+# builds. Because it's a cache mount it is not baked into the image layer, so
+# it both speeds up rebuilds and keeps the image slim (replacing the previous
+# `rm -rf .next/cache`). Requires BuildKit.
+RUN --mount=type=cache,target=/service/packages/dashboard/.next/cache \
+    yarn workspace emailo build && \
     yarn workspace api build && \
     yarn workspace worker build && \
     yarn workspace admin-cli build && \
-    yarn workspace dashboard build && \
-    rm -rf packages/dashboard/.next/cache
+    yarn workspace dashboard build
 
 COPY ./packages/lite/ ./packages/lite
 RUN yarn workspace lite build
