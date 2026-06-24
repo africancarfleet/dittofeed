@@ -49,6 +49,10 @@ x-backend-app-env: &backend-app-env
   # Postgres database name the app connects to. Must match POSTGRES_DB on the
   # bundled container, or the database you created on an external server.
   DATABASE_NAME: ${DATABASE_NAME:-dittofeed}
+  # Extra Postgres connection params, appended to the connection string. For an
+  # external/managed DB that enforces SSL, set DATABASE_PARAMS=sslmode=no-verify
+  # (encrypt without CA verification) or sslmode=verify-full with a trusted CA.
+  DATABASE_PARAMS: ${DATABASE_PARAMS:-}
   CLICKHOUSE_HOST: ${CLICKHOUSE_HOST:-http://clickhouse-server:8123}
   TEMPORAL_ADDRESS: ${TEMPORAL_ADDRESS:-temporal:7233}
   WORKSPACE_NAME: ${WORKSPACE_NAME:-Default}
@@ -139,6 +143,16 @@ services:
       - POSTGRES_USER=${DATABASE_USER:-postgres}
       - POSTGRES_PWD=${DATABASE_PASSWORD:?set DATABASE_PASSWORD}
       - POSTGRES_SEEDS=${DATABASE_HOST:-postgres}
+      # Postgres TLS. The auto-setup image needs TWO sets of vars with INVERSE
+      # host-verification polarity: POSTGRES_TLS_* drive the schema setup tool,
+      # SQL_* drive the running server. For an external/managed DB that enforces
+      # SSL, set TEMPORAL_SQL_TLS=true (and leave host verification off):
+      #   POSTGRES_TLS_ENABLED=true / SQL_TLS_ENABLED=true (encrypt)
+      #   POSTGRES_TLS_DISABLE_HOST_VERIFICATION=true + SQL_HOST_VERIFICATION=false
+      - POSTGRES_TLS_ENABLED=${POSTGRES_TLS_ENABLED:-false}
+      - POSTGRES_TLS_DISABLE_HOST_VERIFICATION=${POSTGRES_TLS_DISABLE_HOST_VERIFICATION:-true}
+      - SQL_TLS_ENABLED=${SQL_TLS_ENABLED:-false}
+      - SQL_HOST_VERIFICATION=${SQL_HOST_VERIFICATION:-false}
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/prod.yaml
     image: temporalio/auto-setup:${TEMPORAL_VERSION:-1.22.4}
     labels:
