@@ -153,6 +153,12 @@ services:
       - POSTGRES_TLS_DISABLE_HOST_VERIFICATION=${POSTGRES_TLS_DISABLE_HOST_VERIFICATION:-true}
       - SQL_TLS_ENABLED=${SQL_TLS_ENABLED:-false}
       - SQL_HOST_VERIFICATION=${SQL_HOST_VERIFICATION:-false}
+      # Managed providers (Neon, etc.) don't expose a `postgres`/`defaultdb`
+      # maintenance database and often withhold CREATEDB, so auto-setup's
+      # `create-database` step fails. Set SKIP_DB_CREATE=true and pre-create the
+      # `temporal` and `temporal_visibility` databases yourself; setup-schema /
+      # update-schema then run against them directly.
+      - SKIP_DB_CREATE=${SKIP_DB_CREATE:-false}
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/prod.yaml
     image: temporalio/auto-setup:${TEMPORAL_VERSION:-1.22.4}
     labels:
