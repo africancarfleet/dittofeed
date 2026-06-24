@@ -10,7 +10,29 @@
 #     allowedOrigins and the signout redirect). DASHBOARD_API_BASE matches it.
 #
 # Set the variables marked REQUIRED in Dokploy's "Environment" tab (or a .env).
-# See .env.dokploy.example for the full list.
+#
+# ---------------------------------------------------------------------------
+# Postgres: bundled container vs. external/dedicated server
+# ---------------------------------------------------------------------------
+# The bundled `postgres` service is gated behind the `embedded-postgres`
+# Compose profile, so you choose one of two modes via env vars in Dokploy:
+#
+#   A) Bundled DB (default): run Postgres inside this stack.
+#      COMPOSE_PROFILES=embedded-postgres
+#      (DATABASE_HOST defaults to the internal `postgres` service.)
+#
+#   B) External DB on a dedicated server: do NOT enable the profile, and point
+#      the app + Temporal at your server:
+#      COMPOSE_PROFILES=                       # leave empty / omit -> no local pg
+#      DATABASE_HOST=db.example.com
+#      DATABASE_PORT=5432
+#      DATABASE_USER=dittofeed
+#      DATABASE_PASSWORD=...
+#      DATABASE_NAME=dittofeed                 # optional; defaults to "dittofeed"
+#      The external server must contain the DATABASE_NAME database, and Temporal
+#      uses the same server (it auto-creates `temporal` / `temporal_visibility`,
+#      which needs CREATE DATABASE privileges). ClickHouse can be externalized
+#      the same way: set CLICKHOUSE_HOST and don't run clickhouse-server.
 version: "3.9"
 
 x-database-credentials: &database-credentials
@@ -24,6 +46,9 @@ x-backend-app-env: &backend-app-env
   NODE_ENV: production
   DATABASE_HOST: ${DATABASE_HOST:-postgres}
   DATABASE_PORT: ${DATABASE_PORT:-5432}
+  # Postgres database name the app connects to. Must match POSTGRES_DB on the
+  # bundled container, or the database you created on an external server.
+  DATABASE_NAME: ${DATABASE_NAME:-dittofeed}
   CLICKHOUSE_HOST: ${CLICKHOUSE_HOST:-http://clickhouse-server:8123}
   TEMPORAL_ADDRESS: ${TEMPORAL_ADDRESS:-temporal:7233}
   WORKSPACE_NAME: ${WORKSPACE_NAME:-Default}
@@ -55,8 +80,9 @@ services:
       resources:
         limits:
           memory: ${LITE_CONTAINER_MEM_LIMIT:-1024}m
+    # No hard dependency on `postgres`: it may be external (profile disabled).
+    # The app retries its DB connection on boot regardless of start order.
     depends_on:
-      - postgres
       - temporal
       - clickhouse-server
     environment:
@@ -93,7 +119,6 @@ services:
     logging:
       driver: "local"
     depends_on:
-      - postgres
       - temporal
       - clickhouse-server
     environment:
@@ -106,8 +131,8 @@ services:
     restart: always
     logging:
       driver: "local"
-    depends_on:
-      - postgres
+    # Postgres may be external (embedded-postgres profile disabled); Temporal's
+    # auto-setup retries POSTGRES_SEEDS, so no hard depends_on is needed.
     environment:
       - DB=postgresql
       - DB_PORT=${DATABASE_PORT:-5432}
@@ -126,12 +151,16 @@ services:
   postgres:
     image: postgres:${POSTGRES_VERSION:-15}
     restart: always
+    # Bundled DB. Enable with COMPOSE_PROFILES=embedded-postgres. Omit the
+    # profile to run against an external Postgres (set DATABASE_HOST etc.).
+    profiles:
+      - embedded-postgres
     logging:
       driver: "local"
     environment:
       - POSTGRES_PASSWORD=${DATABASE_PASSWORD:?set DATABASE_PASSWORD}
       - POSTGRES_USER=${DATABASE_USER:-postgres}
-      - POSTGRES_DB=dittofeed
+      - POSTGRES_DB=${DATABASE_NAME:-dittofeed}
     volumes:
       - postgres:/var/lib/postgresql/data
     networks:
