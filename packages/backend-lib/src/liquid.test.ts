@@ -353,15 +353,23 @@ describe("renderWithUserProperties", () => {
       expect(rendered.trim()).toEqual("[]");
     });
 
-    it("still strictly errors on unknown user properties", () => {
-      expect(() =>
-        renderLiquid({
-          template: `{{ user.unknownProp }}`,
-          workspaceId: randomUUID(),
-          userProperties: {},
-          templateProperties: { aziz: "x" },
-        }),
-      ).toThrow();
+    it("resolves an unset user property to empty rather than throwing", () => {
+      const rendered = renderLiquid({
+        template: `[{{ user.firstName }}]`,
+        workspaceId: randomUUID(),
+        userProperties: {},
+        templateProperties: { aziz: "x" },
+      });
+      expect(rendered.trim()).toEqual("[]");
+    });
+
+    it("treats an unset user property as falsy in conditionals", () => {
+      const rendered = renderLiquid({
+        template: `{% if user.firstName %}Hi {{ user.firstName }}{% else %}there{% endif %}`,
+        workspaceId: randomUUID(),
+        userProperties: {},
+      });
+      expect(rendered.trim()).toEqual("there");
     });
 
     it("renders liquid inside property values against the user context", () => {

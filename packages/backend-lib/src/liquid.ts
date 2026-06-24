@@ -46,7 +46,12 @@ function getLayoutUnsafe(layoutName: string): string {
 }
 
 export const liquidEngine = new Liquid({
-  strictVariables: true,
+  // Non-strict so a message never hard-fails because a single user is missing a
+  // referenced property: missing variables (e.g. `user.firstName`) render as an
+  // empty string, and `{% if user.x %}` correctly evaluates falsy when absent.
+  // Trade-off: typos in any namespace (e.g. `secrets.apiKye`) silently render
+  // empty rather than erroring.
+  strictVariables: false,
   lenientIf: true,
   relativeReference: false,
   fs: {
