@@ -153,6 +153,14 @@ services:
       - POSTGRES_TLS_DISABLE_HOST_VERIFICATION=${POSTGRES_TLS_DISABLE_HOST_VERIFICATION:-true}
       - SQL_TLS_ENABLED=${SQL_TLS_ENABLED:-false}
       - SQL_HOST_VERIFICATION=${SQL_HOST_VERIFICATION:-false}
+      # The schema-setup tool (temporal-sql-tool) reads its OWN TLS env vars,
+      # separate from the server's SQL_TLS_ENABLED above. On the 1.22.4 image,
+      # auto-setup.sh does NOT pass --tls, so POSTGRES_TLS_ENABLED is a no-op for
+      # setup; the tool instead honors SQL_TLS / SQL_TLS_DISABLE_HOST_VERIFICATION
+      # directly. Default SQL_TLS to mirror SQL_TLS_ENABLED so one toggle covers
+      # both the server and schema setup.
+      - SQL_TLS=${SQL_TLS:-${SQL_TLS_ENABLED:-false}}
+      - SQL_TLS_DISABLE_HOST_VERIFICATION=${SQL_TLS_DISABLE_HOST_VERIFICATION:-true}
       # Managed providers (Neon, etc.) don't expose a `postgres`/`defaultdb`
       # maintenance database and often withhold CREATEDB, so auto-setup's
       # `create-database` step fails. Set SKIP_DB_CREATE=true and pre-create the
