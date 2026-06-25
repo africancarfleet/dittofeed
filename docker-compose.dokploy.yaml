@@ -33,7 +33,10 @@
 #      uses the same server (it auto-creates `temporal` / `temporal_visibility`,
 #      which needs CREATE DATABASE privileges). ClickHouse can be externalized
 #      the same way: set CLICKHOUSE_HOST and don't run clickhouse-server.
-version: "3.9"
+#
+# Note: the top-level `version:` field is intentionally omitted — it is obsolete
+# in current Docker Compose / the Compose Spec, which is also what lets services
+# use `mem_limit:` (enforced outside Swarm) instead of `deploy.resources`.
 
 x-database-credentials: &database-credentials
   DATABASE_USER: ${DATABASE_USER:-postgres}
@@ -77,13 +80,13 @@ services:
       dockerfile: packages/lite/Dockerfile
     image: dittofeed-lite:custom
     restart: always
-    command: node --max-old-space-size=${LITE_MEM_LIMIT:-824} ./packages/lite/dist/scripts/startLite.js --workspace-name=${WORKSPACE_NAME:-Default}
+    command: node --max-old-space-size=${LITE_MEM_LIMIT:-1638} ./packages/lite/dist/scripts/startLite.js --workspace-name=${WORKSPACE_NAME:-Default}
     logging:
       driver: "local"
-    deploy:
-      resources:
-        limits:
-          memory: ${LITE_CONTAINER_MEM_LIMIT:-1024}m
+    # mem_limit (not deploy.resources) so the cap is enforced under plain
+    # Compose/Dokploy, not just Swarm. Keep the Node heap (--max-old-space-size)
+    # at ~75-80% of this so non-heap memory has headroom before an OOM-kill.
+    mem_limit: ${LITE_CONTAINER_MEM_LIMIT:-2048m}
     # No hard dependency on `postgres`: it may be external (profile disabled).
     # The app retries its DB connection on boot regardless of start order.
     depends_on:
@@ -199,10 +202,9 @@ services:
     restart: always
     logging:
       driver: "local"
-    deploy:
-      resources:
-        limits:
-          memory: ${CLICKHOUSE_CONTAINER_MEM_LIMIT:-2048}m
+    # Most memory-hungry service; enforced via mem_limit (not Swarm-only
+    # deploy.resources). No CPU limit by design.
+    mem_limit: ${CLICKHOUSE_CONTAINER_MEM_LIMIT:-4096m}
     environment:
       <<: *clickhouse-credentials
     volumes:
