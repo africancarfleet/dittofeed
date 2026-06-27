@@ -2531,6 +2531,93 @@ export const UpsertJourneyResource = Type.Composite([
 
 export type UpsertJourneyResource = Static<typeof UpsertJourneyResource>;
 
+export const GenerateJourneyRequest = Type.Object({
+  workspaceId: Type.String(),
+  prompt: Type.String({
+    description: "Natural language description of the desired journey.",
+    minLength: 1,
+  }),
+  temperature: Type.Optional(Type.Number({ minimum: 0, maximum: 2 })),
+  maxOutputTokens: Type.Optional(Type.Integer({ minimum: 1 })),
+});
+
+export type GenerateJourneyRequest = Static<typeof GenerateJourneyRequest>;
+
+export const GenerateJourneyResponse = Type.Object({
+  name: Type.String(),
+  definition: JourneyDefinition,
+});
+
+export type GenerateJourneyResponse = Static<typeof GenerateJourneyResponse>;
+
+export enum GenerateJourneyErrorTypeEnum {
+  Config = "Config",
+  Generation = "Generation",
+  UnknownReference = "UnknownReference",
+  Validation = "Validation",
+}
+
+export const GenerateJourneyErrorResponse = Type.Object({
+  type: Type.Enum(GenerateJourneyErrorTypeEnum),
+  message: Type.String(),
+  unknownSegmentIds: Type.Optional(Type.Array(Type.String())),
+  unknownTemplateIds: Type.Optional(Type.Array(Type.String())),
+});
+
+export type GenerateJourneyErrorResponse = Static<
+  typeof GenerateJourneyErrorResponse
+>;
+
+export const LlmProvider = Type.Union([
+  Type.Literal("google"),
+  Type.Literal("anthropic"),
+  Type.Literal("openai"),
+]);
+
+export type LlmProvider = Static<typeof LlmProvider>;
+
+export const LlmConfigSource = Type.Union([
+  Type.Literal("workspace"),
+  Type.Literal("environment"),
+  Type.Literal("none"),
+]);
+
+export type LlmConfigSource = Static<typeof LlmConfigSource>;
+
+export const GetLlmSettingsRequest = Type.Object({
+  workspaceId: Type.String(),
+});
+
+export type GetLlmSettingsRequest = Static<typeof GetLlmSettingsRequest>;
+
+export const LlmSettingsResource = Type.Object({
+  provider: LlmProvider,
+  model: Type.Optional(Type.String()),
+  temperature: Type.Number(),
+  maxOutputTokens: Type.Integer(),
+  hasApiKey: Type.Boolean(),
+  apiKeySource: LlmConfigSource,
+  settingsSource: Type.Union([
+    Type.Literal("workspace"),
+    Type.Literal("environment"),
+  ]),
+});
+
+export type LlmSettingsResource = Static<typeof LlmSettingsResource>;
+
+export const UpsertLlmSettingsRequest = Type.Object({
+  workspaceId: Type.String(),
+  provider: Type.Optional(LlmProvider),
+  model: Type.Optional(Type.String()),
+  temperature: Type.Optional(Type.Number({ minimum: 0, maximum: 2 })),
+  maxOutputTokens: Type.Optional(Type.Integer({ minimum: 1 })),
+  // Provide a non-empty string to set/replace the key, null to clear it, or
+  // omit to leave the stored key unchanged.
+  apiKey: Type.Optional(Nullable(Type.String())),
+});
+
+export type UpsertLlmSettingsRequest = Static<typeof UpsertLlmSettingsRequest>;
+
 export const GetJourneysRequest = Type.Object({
   workspaceId: Type.String(),
   getPartial: Type.Optional(Type.Boolean()),

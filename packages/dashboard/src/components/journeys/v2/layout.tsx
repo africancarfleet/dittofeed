@@ -59,6 +59,7 @@ import {
   journeyDraftToState,
   journeyToState,
 } from "../store";
+import GenerateJourneyDialog from "./GenerateJourneyDialog";
 import {
   JourneyV2StepKey,
   JourneyV2StepKeys,
@@ -335,6 +336,7 @@ export default function JourneyV2Layout({
     useJourneyMutation(state.id);
 
   const [optionsDialogOpen, setOptionsDialogOpen] = useState(false);
+  const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
   const [canRunMultiple, setCanRunMultiple] = useState(
     !!journey?.canRunMultiple,
   );
@@ -668,6 +670,13 @@ export default function JourneyV2Layout({
           <Button
             variant="outlined"
             size="small"
+            onClick={() => setGenerateDialogOpen(true)}
+          >
+            ✨ Generate
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
             onClick={handleOptionsDialogOpen}
           >
             Options
@@ -676,6 +685,15 @@ export default function JourneyV2Layout({
           <SettingsMenu commands={settingsCommands} />
         </Stack>
       </Stack>
+
+      <GenerateJourneyDialog
+        open={generateDialogOpen}
+        onClose={() => setGenerateDialogOpen(false)}
+        onGenerated={(name) => {
+          setSnackbarMessage(`Generated draft journey "${name}".`);
+          setSnackbarOpen(true);
+        }}
+      />
       <Box
         sx={{
           width: "100%",

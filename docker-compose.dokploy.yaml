@@ -69,6 +69,15 @@ x-backend-app-env: &backend-app-env
   # and dashboard, and also seeds CORS allowedOrigins + the signout redirect.
   DASHBOARD_URL: "https://${DOMAIN:?set DOMAIN, e.g. dittofeed.example.com}"
   DASHBOARD_API_BASE: "https://${DOMAIN}"
+  # AI / LLM configuration for journey generation. Set the secret LLM_API_KEY in
+  # Dokploy's Environment settings (do NOT hardcode it here). Leaving it empty
+  # keeps the stack healthy; AI endpoints just return "not configured" (503)
+  # until a key is set. Defaults to Gemini; switch provider/model via env.
+  LLM_PROVIDER: ${LLM_PROVIDER:-google}
+  LLM_API_KEY: ${LLM_API_KEY:-}
+  LLM_MODEL: ${LLM_MODEL:-gemini-2.5-flash}
+  LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.4}
+  LLM_MAX_OUTPUT_TOKENS: ${LLM_MAX_OUTPUT_TOKENS:-4096}
 
 services:
   lite:

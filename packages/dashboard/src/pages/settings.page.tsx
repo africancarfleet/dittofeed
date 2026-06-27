@@ -91,6 +91,7 @@ import InfoBox from "../components/infoBox";
 import Layout from "../components/layout";
 import { MenuItemGroup } from "../components/menuItems/types";
 import { PermissionsTable } from "../components/permissionsTable";
+import LlmSettings from "../components/settings/LlmSettings";
 import WebhookSecretTable from "../components/webhookSecretTable";
 import { addInitialStateToProps } from "../lib/addInitialStateToProps";
 import apiRequestHandlerFactory from "../lib/apiRequestHandlerFactory";
@@ -310,6 +311,7 @@ const settingsSectionIds = {
   hubspotIntegration: "hubspot-integration",
   workspaceMetadata: "workspace-metadata",
   permissions: "permissions",
+  ai: "ai",
 } as const;
 
 function getMenuItems(authMode: string | undefined): MenuItemGroup[] {
@@ -423,6 +425,22 @@ function getMenuItems(authMode: string | undefined): MenuItemGroup[] {
         },
       ],
       url: `/settings#${settingsSectionIds.workspaceMetadata}`,
+    },
+    {
+      id: settingsSectionIds.ai,
+      title: "AI",
+      type: "group",
+      children: [
+        {
+          id: "ai-llm",
+          title: "LLM Configuration",
+          type: "item",
+          url: `/settings#${settingsSectionIds.ai}`,
+          icon: Create,
+          description: "Configure the LLM used to generate journeys.",
+        },
+      ],
+      url: `/settings#${settingsSectionIds.ai}`,
     },
   ];
 
@@ -2349,6 +2367,7 @@ function SettingsContents() {
       <IntegrationSettings />
       <PermissionsSettings />
       <Metadata />
+      <LlmSettings id={settingsSectionIds.ai} />
     </>
   );
 }

@@ -37,7 +37,9 @@ const BaseRawConfigProps = {
   clickhouseDatabase: Type.Optional(Type.String()),
   clickhouseUser: Type.String(),
   clickhousePassword: Type.String(),
-  defaultUserJourneyMaxAttempts: Type.Optional(Type.String({ format: "naturalNumber" })),
+  defaultUserJourneyMaxAttempts: Type.Optional(
+    Type.String({ format: "naturalNumber" }),
+  ),
   kafkaBrokers: Type.Optional(Type.String()),
   kafkaUsername: Type.Optional(Type.String()),
   kafkaPassword: Type.Optional(Type.String()),
@@ -53,6 +55,13 @@ const BaseRawConfigProps = {
   bootstrapEvents: Type.Optional(BoolStr),
   bootstrapWorker: Type.Optional(BoolStr),
   bootstrapSafe: Type.Optional(BoolStr),
+  // AI / LLM configuration. Provider is one of "google" | "anthropic" |
+  // "openai". When llmModel is omitted a provider-appropriate default is used.
+  llmProvider: Type.Optional(Type.String()),
+  llmApiKey: Type.Optional(Type.String()),
+  llmModel: Type.Optional(Type.String()),
+  llmTemperature: Type.Optional(Type.String()),
+  llmMaxOutputTokens: Type.Optional(Type.String({ format: "naturalNumber" })),
   defaultIdUserPropertyId: Type.Optional(Type.String()),
   defaultAnonymousIdIdUserPropertyId: Type.Optional(Type.String()),
   defaultEmailUserPropertyId: Type.Optional(Type.String()),
@@ -347,6 +356,11 @@ export type Config = Overwrite<
     clickhouseColdStorageMaxExecutionTime?: number;
     broadcastSendMessagesMaxAttempts: number;
     defaultGetSegmentAndEventDetailsMaxAttempts: number;
+    llmProvider: string;
+    llmApiKey?: string;
+    llmModel?: string;
+    llmTemperature: number;
+    llmMaxOutputTokens: number;
   }
 > & {
   defaultUserEventsTableVersion: string;
@@ -367,6 +381,7 @@ export const SECRETS = new Set<keyof Config>([
   "hyperDxApiKey",
   "databaseUrl", // Contains password
   "dashboardWriteKey", // Potentially sensitive
+  "llmApiKey",
 ]);
 
 const defaultDbParams: Record<string, string> = {
@@ -794,13 +809,25 @@ function parseRawConfig(rawConfig: RawConfig): Config {
       rawConfig.broadcastSendMessagesMaxAttempts,
       5,
     ),
-    defaultUserJourneyMaxAttempts: rawConfig.defaultUserJourneyMaxAttempts !== undefined ? parseInt(
-      rawConfig.defaultUserJourneyMaxAttempts,
-    ) : (nodeEnv === NodeEnvEnum.Test ? 1 : undefined),
+    defaultUserJourneyMaxAttempts:
+      rawConfig.defaultUserJourneyMaxAttempts !== undefined
+        ? parseInt(rawConfig.defaultUserJourneyMaxAttempts)
+        : nodeEnv === NodeEnvEnum.Test
+          ? 1
+          : undefined,
     defaultGetSegmentAndEventDetailsMaxAttempts: parseMaxAttempts(
       rawConfig.defaultGetSegmentAndEventDetailsMaxAttempts,
       nodeEnv === NodeEnvEnum.Test ? 1 : 10,
     ),
+    llmProvider: rawConfig.llmProvider ?? "google",
+    llmApiKey: rawConfig.llmApiKey,
+    llmModel: rawConfig.llmModel,
+    llmTemperature: rawConfig.llmTemperature
+      ? parseFloat(rawConfig.llmTemperature)
+      : 0.4,
+    llmMaxOutputTokens: rawConfig.llmMaxOutputTokens
+      ? parseInt(rawConfig.llmMaxOutputTokens)
+      : 4096,
   };
 
   return parsedConfig;
