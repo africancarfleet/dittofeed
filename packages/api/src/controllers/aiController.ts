@@ -1,10 +1,15 @@
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
+import { analyzeData } from "backend-lib/src/ai/analyzeData";
 import { generateJourneyFromPrompt } from "backend-lib/src/ai/generateJourney";
 import {
   getLlmSettingsView,
   upsertLlmSettings,
 } from "backend-lib/src/ai/settings";
 import {
+  AnalyzeDataErrorResponse,
+  AnalyzeDataErrorTypeEnum,
+  AnalyzeDataRequest,
+  AnalyzeDataResponse,
   EmptyResponse,
   GenerateJourneyErrorResponse,
   GenerateJourneyErrorTypeEnum,
@@ -53,6 +58,36 @@ export default async function aiController(fastify: FastifyInstance) {
     async (request, reply) => {
       await upsertLlmSettings(request.body);
       return reply.status(204).send();
+    },
+  );
+
+  fastify.withTypeProvider<TypeBoxTypeProvider>().post(
+    "/analysis/chat",
+    {
+      schema: {
+        description:
+          "Ask the AI assistant a question about the workspace's data. Read-only; uses analytics tools to answer.",
+        tags: ["AI"],
+        body: AnalyzeDataRequest,
+        response: {
+          200: AnalyzeDataResponse,
+          400: AnalyzeDataErrorResponse,
+          503: AnalyzeDataErrorResponse,
+        },
+      },
+    },
+    async (request, reply) => {
+      const result = await analyzeData({
+        workspaceId: request.body.workspaceId,
+        messages: request.body.messages,
+        now: new Date().toISOString(),
+      });
+      if (result.isErr()) {
+        const status =
+          result.error.type === AnalyzeDataErrorTypeEnum.Config ? 503 : 400;
+        return reply.status(status).send(result.error);
+      }
+      return reply.status(200).send(result.value);
     },
   );
 

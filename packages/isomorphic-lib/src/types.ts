@@ -2618,6 +2618,40 @@ export const UpsertLlmSettingsRequest = Type.Object({
 
 export type UpsertLlmSettingsRequest = Static<typeof UpsertLlmSettingsRequest>;
 
+export const AnalysisChatMessage = Type.Object({
+  role: Type.Union([Type.Literal("user"), Type.Literal("assistant")]),
+  content: Type.String(),
+});
+
+export type AnalysisChatMessage = Static<typeof AnalysisChatMessage>;
+
+export const AnalyzeDataRequest = Type.Object({
+  workspaceId: Type.String(),
+  messages: Type.Array(AnalysisChatMessage, { minItems: 1 }),
+});
+
+export type AnalyzeDataRequest = Static<typeof AnalyzeDataRequest>;
+
+export const AnalyzeDataResponse = Type.Object({
+  text: Type.String(),
+  // Names of the read-only tools the assistant invoked to answer.
+  toolsUsed: Type.Array(Type.String()),
+});
+
+export type AnalyzeDataResponse = Static<typeof AnalyzeDataResponse>;
+
+export enum AnalyzeDataErrorTypeEnum {
+  Config = "Config",
+  Generation = "Generation",
+}
+
+export const AnalyzeDataErrorResponse = Type.Object({
+  type: Type.Enum(AnalyzeDataErrorTypeEnum),
+  message: Type.String(),
+});
+
+export type AnalyzeDataErrorResponse = Static<typeof AnalyzeDataErrorResponse>;
+
 export const GetJourneysRequest = Type.Object({
   workspaceId: Type.String(),
   getPartial: Type.Optional(Type.Boolean()),

@@ -1,6 +1,7 @@
-import { Box } from "@mui/material";
+import { Box, Stack } from "@mui/material";
 import { GetServerSideProps } from "next";
 
+import AnalysisAssistant from "../../components/analysis/AnalysisAssistant";
 import { AnalysisChart } from "../../components/analysisChart";
 import DashboardContent from "../../components/dashboardContent";
 import { addInitialStateToProps } from "../../lib/addInitialStateToProps";
@@ -21,8 +22,11 @@ export const getServerSideProps: GetServerSideProps<PropsWithInitialState> =
 export default function AnalysisOverviewPage() {
   return (
     <DashboardContent>
-      <Box sx={{ width: "100%", height: "100%", pl: 2, pr: 2, pt: 1 }}>
-        <AnalysisChart />
+      <Box sx={{ width: "100%", pl: 2, pr: 2, pt: 1 }}>
+        <Stack spacing={2}>
+          <AnalysisChart />
+          <AnalysisAssistant />
+        </Stack>
       </Box>
     </DashboardContent>
   );
