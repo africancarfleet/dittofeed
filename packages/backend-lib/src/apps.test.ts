@@ -247,6 +247,31 @@ describe("apps", () => {
       );
     });
 
+    it("should skip property-filtered journeys without crashing when the event has no properties", async () => {
+      const userId = uuidv4();
+
+      await submitBatchWithTriggers({
+        workspaceId,
+        data: {
+          batch: [
+            {
+              type: EventType.Track,
+              event: entryEventName,
+              messageId: uuidv4(),
+              userId,
+            },
+          ],
+        },
+      });
+      expect(startKeyedJourneyImpl).toHaveBeenCalledTimes(1);
+      expect(startKeyedJourneyImpl).toHaveBeenCalledWith(
+        expect.objectContaining({
+          journeyId: startedEventTriggeredJourneyId,
+          userId,
+        }),
+      );
+    });
+
     it("should trigger property-filtered journeys when the event properties match", async () => {
       const userId = uuidv4();
 

@@ -543,6 +543,29 @@ describe("segments", () => {
       ).toBe(false);
     });
 
+    it("fails closed without throwing when event properties are missing", () => {
+      expect(
+        matchesEventProperties({
+          properties: [
+            {
+              path: "category",
+              operator: { type: SegmentOperatorType.Equals, value: "bnpl" },
+            },
+          ],
+          data: undefined,
+        }),
+      ).toBe(false);
+    });
+
+    it("matches exists-less conditions against missing properties data", () => {
+      expect(
+        matchesEventProperties({
+          properties: undefined,
+          data: undefined,
+        }),
+      ).toBe(true);
+    });
+
     it("supports nested property paths", () => {
       expect(
         matchesEventProperties({

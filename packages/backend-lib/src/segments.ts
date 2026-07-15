@@ -836,10 +836,16 @@ export function matchesEventProperties({
   properties?: EventEntryPropertyCondition[];
   data: unknown;
 }): boolean {
+  // The underlying jsonpath library throws synchronously when data is not an
+  // object (e.g. a track event submitted without a properties field), rather
+  // than returning an error Result. Normalize so conditions fail closed
+  // instead of crashing the caller.
+  const container: unknown =
+    typeof data === "object" && data !== null ? data : {};
   for (const property of properties ?? []) {
     const { path, operator } = property;
     const value = jsonValue({
-      data,
+      data: container,
       path,
     }).unwrapOr(null);
 
