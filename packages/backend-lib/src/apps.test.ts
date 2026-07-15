@@ -16,6 +16,7 @@ import {
   JourneyDefinition,
   JourneyInsert,
   JourneyNodeType,
+  SegmentOperatorType,
 } from "./types";
 import { findManyEventsWithCount } from "./userEvents";
 import { createWorkspace } from "./workspaces";
@@ -65,6 +66,7 @@ describe("apps", () => {
     let startKeyedJourneyImpl: jest.Mock;
     let notStartedJourneyId: string;
     let startedEventTriggeredJourneyId: string;
+    let propertyFilteredJourneyId: string;
     let segmentEntryJourneyId: string;
     let entryEventName: string;
     let submitBatchWithTriggers: typeof import("./apps").submitBatchWithTriggers;
@@ -86,6 +88,27 @@ describe("apps", () => {
           type: JourneyNodeType.ExitNode,
         },
       };
+      const propertyFilteredJourneyDefinition: JourneyDefinition = {
+        entryNode: {
+          type: JourneyNodeType.EventEntryNode,
+          event: entryEventName,
+          child: JourneyNodeType.ExitNode,
+          key: "itemId",
+          properties: [
+            {
+              path: "category",
+              operator: {
+                type: SegmentOperatorType.Equals,
+                value: "bnpl",
+              },
+            },
+          ],
+        },
+        nodes: [],
+        exitNode: {
+          type: JourneyNodeType.ExitNode,
+        },
+      };
       const segmentEntryJourneyDefinition: JourneyDefinition = {
         entryNode: {
           type: JourneyNodeType.SegmentEntryNode,
@@ -100,6 +123,7 @@ describe("apps", () => {
       segmentEntryJourneyId = uuidv4();
       notStartedJourneyId = uuidv4();
       startedEventTriggeredJourneyId = uuidv4();
+      propertyFilteredJourneyId = uuidv4();
 
       await db()
         .insert(dbJourney)
@@ -117,6 +141,13 @@ describe("apps", () => {
             status: "Running",
             workspaceId,
             definition: eventTriggeredJourneyDefinition,
+          },
+          {
+            id: propertyFilteredJourneyId,
+            name: "property filtered event triggered",
+            status: "Running",
+            workspaceId,
+            definition: propertyFilteredJourneyDefinition,
           },
           {
             id: segmentEntryJourneyId,
@@ -181,6 +212,69 @@ describe("apps", () => {
         expect.objectContaining({
           journeyId: startedEventTriggeredJourneyId,
           userId: userId1,
+        }),
+      );
+    });
+
+    it("should skip property-filtered journeys when the event properties don't match", async () => {
+      const userId = uuidv4();
+
+      await submitBatchWithTriggers({
+        workspaceId,
+        data: {
+          batch: [
+            {
+              type: EventType.Track,
+              event: entryEventName,
+              messageId: uuidv4(),
+              userId,
+              properties: { itemId: "123", category: "standard" },
+            },
+          ],
+        },
+      });
+      expect(startKeyedJourneyImpl).toHaveBeenCalledTimes(1);
+      expect(startKeyedJourneyImpl).toHaveBeenCalledWith(
+        expect.objectContaining({
+          journeyId: startedEventTriggeredJourneyId,
+          userId,
+        }),
+      );
+      expect(startKeyedJourneyImpl).not.toHaveBeenCalledWith(
+        expect.objectContaining({
+          journeyId: propertyFilteredJourneyId,
+        }),
+      );
+    });
+
+    it("should trigger property-filtered journeys when the event properties match", async () => {
+      const userId = uuidv4();
+
+      await submitBatchWithTriggers({
+        workspaceId,
+        data: {
+          batch: [
+            {
+              type: EventType.Track,
+              event: entryEventName,
+              messageId: uuidv4(),
+              userId,
+              properties: { itemId: "123", category: "bnpl" },
+            },
+          ],
+        },
+      });
+      expect(startKeyedJourneyImpl).toHaveBeenCalledTimes(2);
+      expect(startKeyedJourneyImpl).toHaveBeenCalledWith(
+        expect.objectContaining({
+          journeyId: startedEventTriggeredJourneyId,
+          userId,
+        }),
+      );
+      expect(startKeyedJourneyImpl).toHaveBeenCalledWith(
+        expect.objectContaining({
+          journeyId: propertyFilteredJourneyId,
+          userId,
         }),
       );
     });

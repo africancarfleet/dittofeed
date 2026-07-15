@@ -35,12 +35,14 @@ import {
   CursorDirectionEnum,
   DelayVariantType,
   EntryNode,
+  EventEntryPropertyCondition,
   JourneyNodeType,
   JourneyUiNodeType,
   MobilePushProviderType,
   PartialSegmentResource,
   SavedSegmentResource,
   SegmentNodeType,
+  SegmentOperatorType,
   SignalWireSenderOverrideType,
   SmsProviderType,
   TwilioSenderOverrideType,
@@ -305,7 +307,23 @@ function EntryNodeFields({
       );
       break;
     }
-    case JourneyNodeType.EventEntryNode:
+    case JourneyNodeType.EventEntryNode: {
+      const updateEntryProperties = (
+        mutate: (
+          conditions: EventEntryPropertyCondition[],
+        ) => EventEntryPropertyCondition[],
+      ) => {
+        updateJourneyNodeData(nodeId, (node) => {
+          const props = node.data.nodeTypeProps;
+          if (
+            props.type === AdditionalJourneyNodeType.EntryUiNode &&
+            props.variant.type === JourneyNodeType.EventEntryNode
+          ) {
+            const next = mutate(props.variant.properties ?? []);
+            props.variant.properties = next.length > 0 ? next : undefined;
+          }
+        });
+      };
       variant = (
         <>
           <EventNamesAutocomplete
@@ -342,9 +360,95 @@ function EntryNodeFields({
               });
             }}
           />
+
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+            <InfoTooltip title="Only start the journey when the triggering event's properties match all of these conditions. Leave empty to trigger on every occurrence of the event. Values are compared as strings, so the event property must be a string: an event sent with category: 1 (number) will not match a filter value of 1." />
+            <Typography variant="subtitle2">Property Filters</Typography>
+          </Stack>
+          {(nodeVariant.properties ?? []).map((condition, conditionIndex) => (
+            <Stack
+              direction="row"
+              spacing={1}
+              // eslint-disable-next-line react/no-array-index-key
+              key={conditionIndex}
+              sx={{ alignItems: "center" }}
+            >
+              <Box sx={{ flex: 1 }}>
+                <PropertiesAutocomplete
+                  event={nodeVariant.event ?? ""}
+                  property={condition.path}
+                  disabled={disabled}
+                  label="Property Path"
+                  onPropertyChange={(newPath) => {
+                    updateEntryProperties((conditions) =>
+                      conditions.map((c, i) =>
+                        i === conditionIndex ? { ...c, path: newPath } : c,
+                      ),
+                    );
+                  }}
+                />
+              </Box>
+              <TextField
+                sx={{ flex: 1 }}
+                label="Equals Value"
+                helperText="Exact, type-sensitive match — the event property must be a string."
+                disabled={
+                  (disabled ?? false) ||
+                  condition.operator.type !== SegmentOperatorType.Equals
+                }
+                value={
+                  condition.operator.type === SegmentOperatorType.Equals
+                    ? String(condition.operator.value)
+                    : ""
+                }
+                onChange={(e) => {
+                  updateEntryProperties((conditions) =>
+                    conditions.map((c, i) =>
+                      i === conditionIndex
+                        ? {
+                            ...c,
+                            operator: {
+                              type: SegmentOperatorType.Equals,
+                              value: e.target.value,
+                            },
+                          }
+                        : c,
+                    ),
+                  );
+                }}
+              />
+              <IconButton
+                disabled={disabled}
+                onClick={() => {
+                  updateEntryProperties((conditions) =>
+                    conditions.filter((_, i) => i !== conditionIndex),
+                  );
+                }}
+              >
+                <Delete />
+              </IconButton>
+            </Stack>
+          ))}
+          <Button
+            variant="outlined"
+            size="small"
+            disabled={disabled}
+            onClick={() => {
+              updateEntryProperties((conditions) => [
+                ...conditions,
+                {
+                  path: "",
+                  operator: { type: SegmentOperatorType.Equals, value: "" },
+                },
+              ]);
+            }}
+          >
+            Add Property Filter
+          </Button>
         </>
       );
       break;
+    }
     default:
       assertUnreachable(nodeVariant);
   }

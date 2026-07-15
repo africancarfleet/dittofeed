@@ -42,7 +42,11 @@ import {
 import logger from "./logger";
 import { getMeter } from "./openTelemetry";
 import { restartUserJourneyWorkflow } from "./restartUserJourneyWorkflow/lifecycle";
-import { findManySegmentResourcesSafe, findSegmentResource } from "./segments";
+import {
+  findManySegmentResourcesSafe,
+  findSegmentResource,
+  matchesEventProperties,
+} from "./segments";
 import { getContext } from "./temporal/activity";
 import { getUserJourneyWorkflowId } from "./temporal/workflows";
 import {
@@ -789,6 +793,23 @@ export function triggerEventEntryJourneysFactory({
               journeyId,
             },
             "can't trigger non-event entry journeys using event trigger",
+          );
+          return [];
+        }
+
+        if (
+          !matchesEventProperties({
+            properties: definition.entryNode.properties,
+            data: triggerEvent.properties,
+          })
+        ) {
+          logger().debug(
+            {
+              workspaceId,
+              journeyId,
+              event: triggerEvent.event,
+            },
+            "event entry property conditions not satisfied, skipping journey",
           );
           return [];
         }

@@ -33,6 +33,7 @@ import logger from "./logger";
 import {
   DeleteSegmentRequest,
   EnrichedSegment,
+  EventEntryPropertyCondition,
   InternalEventType,
   JsonResult,
   KeyedPerformedSegmentNode,
@@ -823,6 +824,68 @@ export type CalculateKeyedSegmentsResult = Static<
   typeof CalculateKeyedSegmentsResult
 >;
 
+/**
+ * Checks whether an event's properties satisfy every condition in the list.
+ * Used both by in-memory keyed segment evaluation and by event entry
+ * property filters. An empty or missing condition list always matches.
+ */
+export function matchesEventProperties({
+  properties,
+  data,
+}: {
+  properties?: EventEntryPropertyCondition[];
+  data: unknown;
+}): boolean {
+  for (const property of properties ?? []) {
+    const { path, operator } = property;
+    const value = jsonValue({
+      data,
+      path,
+    }).unwrapOr(null);
+
+    let mismatched = false;
+    switch (operator.type) {
+      case SegmentOperatorType.Equals: {
+        mismatched = value !== operator.value;
+        break;
+      }
+      case SegmentOperatorType.Exists: {
+        mismatched = value === null || value === "" || value === undefined;
+        break;
+      }
+      case SegmentOperatorType.LessThan: {
+        const numValue = Number(value);
+        mismatched = Number.isNaN(numValue) || numValue >= operator.value;
+        break;
+      }
+      case SegmentOperatorType.GreaterThanOrEqual: {
+        const numValue = Number(value);
+        mismatched = Number.isNaN(numValue) || numValue < operator.value;
+        break;
+      }
+      case SegmentOperatorType.NotEquals: {
+        mismatched = value === operator.value;
+        break;
+      }
+      default:
+        assertUnreachable(operator);
+    }
+
+    if (mismatched) {
+      logger().debug(
+        {
+          path,
+          value,
+          operator,
+        },
+        "property value does not match",
+      );
+      return false;
+    }
+  }
+  return true;
+}
+
 function filterEvent(
   {
     event,
@@ -877,54 +940,7 @@ function filterEvent(
       return false;
     }
   }
-  for (const property of properties ?? []) {
-    const { path, operator } = property;
-    const value = jsonValue({
-      data: e.properties,
-      path,
-    }).unwrapOr(null);
-
-    let mismatched = false;
-    switch (operator.type) {
-      case SegmentOperatorType.Equals: {
-        mismatched = value !== operator.value;
-        break;
-      }
-      case SegmentOperatorType.Exists: {
-        mismatched = value === null || value === "" || value === undefined;
-        break;
-      }
-      case SegmentOperatorType.LessThan: {
-        const numValue = Number(value);
-        mismatched = Number.isNaN(numValue) || numValue >= operator.value;
-        break;
-      }
-      case SegmentOperatorType.GreaterThanOrEqual: {
-        const numValue = Number(value);
-        mismatched = Number.isNaN(numValue) || numValue < operator.value;
-        break;
-      }
-      case SegmentOperatorType.NotEquals: {
-        mismatched = value === operator.value;
-        break;
-      }
-      default:
-        assertUnreachable(operator);
-    }
-
-    if (mismatched) {
-      logger().debug(
-        {
-          path,
-          value,
-          operator,
-        },
-        "property value does not match",
-      );
-      return false;
-    }
-  }
-  return true;
+  return matchesEventProperties({ properties, data: e.properties });
 }
 
 export function calculateKeyedSegment({

@@ -15,6 +15,7 @@ import {
   findAllSegmentAssignmentsByIdsForUsers,
   findRecentlyUpdatedUsersInSegment,
   insertSegmentAssignments,
+  matchesEventProperties,
   upsertSegment,
 } from "./segments";
 import {
@@ -466,6 +467,94 @@ describe("segments", () => {
         );
         expect(segment.status).toBe(SegmentStatusEnum.NotStarted);
       });
+    });
+  });
+
+  describe("matchesEventProperties", () => {
+    it("matches when no conditions are defined", () => {
+      expect(
+        matchesEventProperties({
+          properties: undefined,
+          data: { category: "bnpl" },
+        }),
+      ).toBe(true);
+    });
+
+    it("matches when an equals condition is satisfied", () => {
+      expect(
+        matchesEventProperties({
+          properties: [
+            {
+              path: "category",
+              operator: { type: SegmentOperatorType.Equals, value: "bnpl" },
+            },
+          ],
+          data: { category: "bnpl", amount: 100 },
+        }),
+      ).toBe(true);
+    });
+
+    it("does not match when an equals condition is not satisfied", () => {
+      expect(
+        matchesEventProperties({
+          properties: [
+            {
+              path: "category",
+              operator: { type: SegmentOperatorType.Equals, value: "bnpl" },
+            },
+          ],
+          data: { category: "standard" },
+        }),
+      ).toBe(false);
+    });
+
+    it("does not match when the property is missing", () => {
+      expect(
+        matchesEventProperties({
+          properties: [
+            {
+              path: "category",
+              operator: { type: SegmentOperatorType.Equals, value: "bnpl" },
+            },
+          ],
+          data: { amount: 100 },
+        }),
+      ).toBe(false);
+    });
+
+    it("requires all conditions to match", () => {
+      expect(
+        matchesEventProperties({
+          properties: [
+            {
+              path: "category",
+              operator: { type: SegmentOperatorType.Equals, value: "bnpl" },
+            },
+            {
+              path: "amount",
+              operator: {
+                type: SegmentOperatorType.GreaterThanOrEqual,
+                value: 500,
+              },
+            },
+          ],
+          data: { category: "bnpl", amount: 100 },
+        }),
+      ).toBe(false);
+    });
+
+    it("supports nested property paths", () => {
+      expect(
+        matchesEventProperties({
+          properties: [
+            {
+              path: "payment.category",
+              operator: { type: SegmentOperatorType.Equals, value: "bnpl" },
+            },
+          ],
+          data: { payment: { category: "bnpl" } },
+        }),
+      ).toBe(true);
     });
   });
 

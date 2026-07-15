@@ -734,10 +734,17 @@ function journeyDefinitionFromStateBranch(
                 nodeId: nId,
               });
             }
+            const propertyConditions = uiNode.variant.properties?.filter(
+              (p) => p.path.length > 0,
+            );
             const node: EventEntryNode = {
               type: JourneyNodeType.EventEntryNode,
               event: uiNode.variant.event,
               key: uiNode.variant.key,
+              properties:
+                propertyConditions && propertyConditions.length > 0
+                  ? propertyConditions
+                  : undefined,
               child,
             };
             nodes.push(node);
@@ -1573,6 +1580,7 @@ export function journeyBranchToState(
             type: JourneyNodeType.EventEntryNode,
             event: node.event,
             key: node.key,
+            properties: node.properties,
           },
         };
         nodesState.push(

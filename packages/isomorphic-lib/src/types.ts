@@ -909,11 +909,24 @@ export const SegmentEntryNode = Type.Object(
 
 export type SegmentEntryNode = Static<typeof SegmentEntryNode>;
 
+export const EventEntryPropertyCondition = Type.Object({
+  path: Type.String(),
+  operator: KeyedPerformedPropertiesOperator,
+});
+
+export type EventEntryPropertyCondition = Static<
+  typeof EventEntryPropertyCondition
+>;
+
 export const EventEntryNode = Type.Object(
   {
     type: Type.Literal(JourneyNodeType.EventEntryNode),
     event: Type.String(),
     key: Type.Optional(Type.String()),
+    // Conditions on the triggering event's properties. The journey only
+    // starts when every condition matches; when omitted, the event name
+    // alone decides.
+    properties: Type.Optional(Type.Array(EventEntryPropertyCondition)),
     child: Type.String(),
   },
   {
