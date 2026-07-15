@@ -221,6 +221,100 @@ function RandomCohortNodeFields({
   );
 }
 
+// UI-level operator choice for event entry property filters. Equals/NotEquals
+// are split into text and number variants because their schema value is
+// string | number and the matcher compares type-strictly.
+type EntryFilterOperatorOption =
+  | "EqualsString"
+  | "EqualsNumber"
+  | "NotEqualsString"
+  | "NotEqualsNumber"
+  | "Exists"
+  | "GreaterThanOrEqual"
+  | "LessThan";
+
+const ENTRY_FILTER_OPERATOR_LABELS: Record<EntryFilterOperatorOption, string> =
+  {
+    EqualsString: "Equals (text)",
+    EqualsNumber: "Equals (number)",
+    NotEqualsString: "Not equals (text)",
+    NotEqualsNumber: "Not equals (number)",
+    Exists: "Exists",
+    GreaterThanOrEqual: "At least (≥)",
+    LessThan: "Less than (<)",
+  };
+
+function entryFilterOperatorOption(
+  operator: EventEntryPropertyCondition["operator"],
+): EntryFilterOperatorOption {
+  switch (operator.type) {
+    case SegmentOperatorType.Equals:
+      return typeof operator.value === "number"
+        ? "EqualsNumber"
+        : "EqualsString";
+    case SegmentOperatorType.NotEquals:
+      return typeof operator.value === "number"
+        ? "NotEqualsNumber"
+        : "NotEqualsString";
+    case SegmentOperatorType.Exists:
+      return "Exists";
+    case SegmentOperatorType.GreaterThanOrEqual:
+      return "GreaterThanOrEqual";
+    case SegmentOperatorType.LessThan:
+      return "LessThan";
+    default:
+      return assertUnreachable(operator);
+  }
+}
+
+function entryFilterValueHelperText(option: EntryFilterOperatorOption): string {
+  switch (option) {
+    case "GreaterThanOrEqual":
+    case "LessThan":
+      return "Compared as a number — numeric strings in the event also match.";
+    case "EqualsNumber":
+    case "NotEqualsNumber":
+      return "Exact match — the event property must be a number.";
+    default:
+      return "Exact match — the event property must be a string.";
+  }
+}
+
+function entryFilterValueString(
+  operator: EventEntryPropertyCondition["operator"],
+): string {
+  return "value" in operator ? String(operator.value) : "";
+}
+
+function buildEntryFilterOperator(
+  option: EntryFilterOperatorOption,
+  rawValue: string,
+): EventEntryPropertyCondition["operator"] {
+  const parsed = Number(rawValue);
+  const numericValue = Number.isFinite(parsed) ? parsed : 0;
+  switch (option) {
+    case "EqualsString":
+      return { type: SegmentOperatorType.Equals, value: rawValue };
+    case "EqualsNumber":
+      return { type: SegmentOperatorType.Equals, value: numericValue };
+    case "NotEqualsString":
+      return { type: SegmentOperatorType.NotEquals, value: rawValue };
+    case "NotEqualsNumber":
+      return { type: SegmentOperatorType.NotEquals, value: numericValue };
+    case "Exists":
+      return { type: SegmentOperatorType.Exists };
+    case "GreaterThanOrEqual":
+      return {
+        type: SegmentOperatorType.GreaterThanOrEqual,
+        value: numericValue,
+      };
+    case "LessThan":
+      return { type: SegmentOperatorType.LessThan, value: numericValue };
+    default:
+      return assertUnreachable(option);
+  }
+}
+
 function EntryNodeFields({
   nodeId,
   nodeProps,
@@ -362,73 +456,114 @@ function EntryNodeFields({
           />
 
           <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-            <InfoTooltip title="Only start the journey when the triggering event's properties match all of these conditions. Leave empty to trigger on every occurrence of the event. Values are compared as strings, so the event property must be a string: an event sent with category: 1 (number) will not match a filter value of 1." />
+            <InfoTooltip title="Only start the journey when the triggering event's properties match all of these conditions (AND). Leave empty to trigger on every occurrence of the event. Equality checks are type-sensitive: pick the text or number operator variant to match the JSON type the event actually sends." />
             <Typography variant="subtitle2">Property Filters</Typography>
           </Stack>
-          {(nodeVariant.properties ?? []).map((condition, conditionIndex) => (
-            <Stack
-              direction="row"
-              spacing={1}
-              // eslint-disable-next-line react/no-array-index-key
-              key={conditionIndex}
-              sx={{ alignItems: "center" }}
-            >
-              <Box sx={{ flex: 1 }}>
-                <PropertiesAutocomplete
-                  event={nodeVariant.event ?? ""}
-                  property={condition.path}
-                  disabled={disabled}
-                  label="Property Path"
-                  onPropertyChange={(newPath) => {
-                    updateEntryProperties((conditions) =>
-                      conditions.map((c, i) =>
-                        i === conditionIndex ? { ...c, path: newPath } : c,
+          {(nodeVariant.properties ?? []).map((condition, conditionIndex) => {
+            const operatorOption = entryFilterOperatorOption(
+              condition.operator,
+            );
+            const isNumeric =
+              operatorOption === "EqualsNumber" ||
+              operatorOption === "NotEqualsNumber" ||
+              operatorOption === "GreaterThanOrEqual" ||
+              operatorOption === "LessThan";
+            return (
+              <Stack
+                direction="row"
+                spacing={1}
+                // eslint-disable-next-line react/no-array-index-key
+                key={conditionIndex}
+                sx={{ alignItems: "flex-start" }}
+              >
+                <Box sx={{ flex: 1 }}>
+                  <PropertiesAutocomplete
+                    event={nodeVariant.event ?? ""}
+                    property={condition.path}
+                    disabled={disabled}
+                    label="Property Path"
+                    onPropertyChange={(newPath) => {
+                      updateEntryProperties((conditions) =>
+                        conditions.map((c, i) =>
+                          i === conditionIndex ? { ...c, path: newPath } : c,
+                        ),
+                      );
+                    }}
+                  />
+                </Box>
+                <FormControl sx={{ minWidth: 170 }}>
+                  <InputLabel>Operator</InputLabel>
+                  <Select
+                    label="Operator"
+                    value={operatorOption}
+                    disabled={disabled}
+                    onChange={(e) => {
+                      // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
+                      const newOption = e.target
+                        .value as EntryFilterOperatorOption;
+                      updateEntryProperties((conditions) =>
+                        conditions.map((c, i) =>
+                          i === conditionIndex
+                            ? {
+                                ...c,
+                                operator: buildEntryFilterOperator(
+                                  newOption,
+                                  entryFilterValueString(c.operator),
+                                ),
+                              }
+                            : c,
+                        ),
+                      );
+                    }}
+                  >
+                    {Object.entries(ENTRY_FILTER_OPERATOR_LABELS).map(
+                      ([value, label]) => (
+                        <MenuItem key={value} value={value}>
+                          {label}
+                        </MenuItem>
                       ),
+                    )}
+                  </Select>
+                </FormControl>
+                {operatorOption !== "Exists" && (
+                  <TextField
+                    sx={{ flex: 1 }}
+                    label="Value"
+                    type={isNumeric ? "number" : "text"}
+                    helperText={entryFilterValueHelperText(operatorOption)}
+                    disabled={disabled}
+                    value={entryFilterValueString(condition.operator)}
+                    onChange={(e) => {
+                      updateEntryProperties((conditions) =>
+                        conditions.map((c, i) =>
+                          i === conditionIndex
+                            ? {
+                                ...c,
+                                operator: buildEntryFilterOperator(
+                                  operatorOption,
+                                  e.target.value,
+                                ),
+                              }
+                            : c,
+                        ),
+                      );
+                    }}
+                  />
+                )}
+                <IconButton
+                  disabled={disabled}
+                  sx={{ mt: 1 }}
+                  onClick={() => {
+                    updateEntryProperties((conditions) =>
+                      conditions.filter((_, i) => i !== conditionIndex),
                     );
                   }}
-                />
-              </Box>
-              <TextField
-                sx={{ flex: 1 }}
-                label="Equals Value"
-                helperText="Exact, type-sensitive match — the event property must be a string."
-                disabled={
-                  (disabled ?? false) ||
-                  condition.operator.type !== SegmentOperatorType.Equals
-                }
-                value={
-                  condition.operator.type === SegmentOperatorType.Equals
-                    ? String(condition.operator.value)
-                    : ""
-                }
-                onChange={(e) => {
-                  updateEntryProperties((conditions) =>
-                    conditions.map((c, i) =>
-                      i === conditionIndex
-                        ? {
-                            ...c,
-                            operator: {
-                              type: SegmentOperatorType.Equals,
-                              value: e.target.value,
-                            },
-                          }
-                        : c,
-                    ),
-                  );
-                }}
-              />
-              <IconButton
-                disabled={disabled}
-                onClick={() => {
-                  updateEntryProperties((conditions) =>
-                    conditions.filter((_, i) => i !== conditionIndex),
-                  );
-                }}
-              >
-                <Delete />
-              </IconButton>
-            </Stack>
-          ))}
+                >
+                  <Delete />
+                </IconButton>
+              </Stack>
+            );
+          })}
           <Button
             variant="outlined"
             size="small"
@@ -620,9 +755,7 @@ function MessageNodePropertiesEditor({
                 label={key}
                 size="small"
                 variant="outlined"
-                onClick={
-                  disabled ? undefined : () => addSuggestedKey(key)
-                }
+                onClick={disabled ? undefined : () => addSuggestedKey(key)}
                 disabled={disabled}
               />
             ))}
