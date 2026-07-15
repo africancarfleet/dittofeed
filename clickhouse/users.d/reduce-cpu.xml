@@ -1,0 +1,11 @@
+<clickhouse>
+    <profiles>
+        <default>
+            <!-- Cap per-query parallelism. ClickHouse defaults to one thread per
+                 host core, so a single computed-properties recompute query can
+                 saturate all 8 CPUs and starve temporal/lite. 4 threads keeps
+                 recomputes fast enough while leaving headroom. -->
+            <max_threads>4</max_threads>
+        </default>
+    </profiles>
+</clickhouse>

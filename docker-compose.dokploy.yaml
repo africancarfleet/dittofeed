@@ -78,6 +78,12 @@ x-backend-app-env: &backend-app-env
   LLM_MODEL: ${LLM_MODEL:-gemini-2.5-flash}
   LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.4}
   LLM_MAX_OUTPUT_TOKENS: ${LLM_MAX_OUTPUT_TOKENS:-4096}
+  # How often segments + computed user properties are re-evaluated against
+  # ClickHouse, in ms. Upstream default is 120000 (2 min), which is the main
+  # ClickHouse CPU driver. 600000 (10 min) cuts that load ~5x. Event-entry
+  # journeys are unaffected (they trigger in real time); segment-entry journeys
+  # and segment membership lag by up to this interval.
+  COMPUTE_PROPERTIES_INTERVAL: ${COMPUTE_PROPERTIES_INTERVAL:-600000}
 
 services:
   lite:
@@ -214,11 +220,20 @@ services:
     # Most memory-hungry service; enforced via mem_limit (not Swarm-only
     # deploy.resources). No CPU limit by design.
     mem_limit: ${CLICKHOUSE_CONTAINER_MEM_LIMIT:-4096m}
+    # Optional hard CPU cap for the container (e.g. CLICKHOUSE_CPUS=4). The
+    # default 0 means "no limit". Prefer the softer max_threads /
+    # background_pool_size caps in ./clickhouse/ (mounted below); use this only
+    # if ClickHouse still starves other services.
+    cpus: ${CLICKHOUSE_CPUS:-0}
     environment:
       <<: *clickhouse-credentials
     volumes:
       - clickhouse_lib:/var/lib/clickhouse
       - clickhouse_log:/var/log/clickhouse-server
+      # CPU-limiting overrides. Mounted as single files (not whole dirs) because
+      # the image entrypoint writes its own generated files into users.d.
+      - ./clickhouse/config.d/reduce-cpu.xml:/etc/clickhouse-server/config.d/reduce-cpu.xml:ro
+      - ./clickhouse/users.d/reduce-cpu.xml:/etc/clickhouse-server/users.d/reduce-cpu.xml:ro
     networks:
       - dittofeed-network-lite
 
