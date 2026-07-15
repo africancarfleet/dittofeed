@@ -3,4 +3,14 @@
          non-query CPU consumer; 4 slows merges but smooths CPU spikes on a
          shared 8-core host. -->
     <background_pool_size>4</background_pool_size>
+    <!-- The "free entries" thresholds below default to values sized for a
+         16-thread pool (8 / 20 / 25). ClickHouse's startup sanity check
+         requires them to fit within background_pool_size (x ratio 2), so they
+         must be scaled down together with the pool or the server refuses to
+         boot with BAD_ARGUMENTS. -->
+    <merge_tree>
+        <number_of_free_entries_in_pool_to_lower_max_size_of_merge>2</number_of_free_entries_in_pool_to_lower_max_size_of_merge>
+        <number_of_free_entries_in_pool_to_execute_mutation>4</number_of_free_entries_in_pool_to_execute_mutation>
+        <number_of_free_entries_in_pool_to_execute_optimize_entire_partition>4</number_of_free_entries_in_pool_to_execute_optimize_entire_partition>
+    </merge_tree>
 </clickhouse>
